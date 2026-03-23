@@ -3,7 +3,7 @@ chcp 65001 >nul
 
 cls
 echo ========================================
-echo   clawTest 环境检测
+echo   word_replace 环境检测
 echo ========================================
 echo.
 

@@ -1,5 +1,5 @@
 @echo off
-REM Auto-find Python for clawTest
+REM Auto-find Python for word_replace
 
 REM Check Miniconda first (most common on this machine)
 if exist "D:\Miniconda\python.exe" (

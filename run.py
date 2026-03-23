@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-clawTest 启动入口
+word_replace 启动入口
 可以选择启动 Word校对工具 或 知识库管理器
 """
 
@@ -10,7 +10,7 @@ import sys
 
 def main():
     print("=" * 50)
-    print("  clawTest 工具集")
+    print("  word_replace 工具集")
     print("=" * 50)
     print()
     print("请选择要运行的程序：")

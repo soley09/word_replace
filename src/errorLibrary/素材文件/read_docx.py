@@ -3,7 +3,8 @@ import docx
 import os
 
 # Find file
-base = r'C:\Users\Administrator\Desktop\clawTest\errorLibrary'
+# 使用相对路径
+base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'errorLibrary')
 f = None
 for root, dirs, files in os.walk(base):
     for file in files:

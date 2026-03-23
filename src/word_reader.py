@@ -34,7 +34,9 @@ class WordReaderApp:
         self.root.geometry("1100x850")
         
         # 知识库路径
-        self.library_path = r"C:\Users\Administrator\Desktop\clawTest\src\errorLibrary\Word_Library.md"
+        # 使用相对路径以提高可移植性
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.library_path = os.path.join(current_dir, "errorLibrary", "Word_Library.md")
         
         # 当前文件路径
         self.current_file = None
@@ -760,7 +762,8 @@ class WordReaderApp:
     def open_library(self):
         """打开知识库"""
         self.log("点击了【知识库】按钮")
-        lib_path = r"C:\Users\Administrator\Desktop\clawTest\src\errorLibrary\readLibrary.py"
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        lib_path = os.path.join(current_dir, "errorLibrary", "readLibrary.py")
         if os.path.exists(lib_path):
             try:
                 import subprocess

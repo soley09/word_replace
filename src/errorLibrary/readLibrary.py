@@ -26,7 +26,8 @@ class ReadLibraryApp:
         self.root.geometry("1400x700")
         
         # 知识库路径
-        self.library_dir = r"C:\Users\Administrator\Desktop\clawTest\src\errorLibrary"
+        # 使用相对路径以提高可移植性
+        self.library_dir = os.path.dirname(os.path.abspath(__file__))
         self.proper_library_path = os.path.join(self.library_dir, "Proper_Word_Library.txt")
         self.pending_review_path = os.path.join(self.library_dir, "Pending_Review.txt")
         self.word_library_path = os.path.join(self.library_dir, "Word_Library.txt")

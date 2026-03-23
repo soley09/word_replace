@@ -1,6 +1,6 @@
 @echo off
 REM ======================================
-REM clawTest 配置文件
+REM word_replace 配置文件
 REM ======================================
 REM
 REM 如果自动查找Python失败，请在此处填写你的Python路径

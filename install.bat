@@ -12,48 +12,21 @@ if "%PYTHON%"=="ERROR" (
 
 cls
 echo ========================================
-echo   clawTest Setup
-echo ========================================
+echo   word_replace Setup
+echo ======================================
 echo.
 
-"%PYTHON%" --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Python cannot run
-    pause
-    exit /b 1
-)
+:: 1. 检测环境
+call check_env.bat
 
-for /f "tokens=*" %%i in ('"%PYTHON%" --version') do set PYTHON_VERSION=%%i
-echo [OK] Python: !PYTHON_VERSION!
-echo.
+:: 2. 安装依赖
+echo [2/3] 正在安装 Python 依赖...
+python -m pip install --no-index --find-links=offline_libs python-docx lxml typing_extensions
 
-echo ========================================
-echo   Installing dependencies...
-echo ========================================
-echo.
-
-"%PYTHON%" -c "import docx" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Installing python-docx...
-    if exist "offline_libs\*.whl" (
-        "%PYTHON%" -m pip install offline_libs\*.whl --no-index --find-links offline_libs
-    ) else (
-        "%PYTHON%" -m pip install python-docx
-    )
-    echo [OK] python-docx installed
-) else (
-    echo [OK] python-docx already installed
-)
-echo.
-
-echo ========================================
-echo   Creating shortcuts...
-echo ========================================
-echo.
-
-powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%USERPROFILE%\Desktop\clawTest-Word校对.lnk'); $s.TargetPath = '%CD%\启动Word校对.bat'; $s.WorkingDirectory = '%CD%'; $s.Save()"
-
-powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%USERPROFILE%\Desktop\clawTest-知识库.lnk'); $s.TargetPath = '%CD%\启动知识库管理器.bat'; $s.WorkingDirectory = '%CD%'; $s.Save()"
+:: 3. 创建桌面快捷方式
+echo [3/3] 正在创建桌面快捷方式...
+powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%USERPROFILE%\Desktop\word_replace-Word校对.lnk'); $s.TargetPath = '%CD%\启动Word校对.bat'; $s.WorkingDirectory = '%CD%'; $s.Save()"
+powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%USERPROFILE%\Desktop\word_replace-知识库.lnk'); $s.TargetPath = '%CD%\启动知识库管理器.bat'; $s.WorkingDirectory = '%CD%'; $s.Save()"
 
 echo [OK] Done!
 echo.
