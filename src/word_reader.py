@@ -30,11 +30,10 @@ except ImportError:
 class WordReaderApp:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Word文档读取工具")
-        self.root.geometry("1100x850")
+        self.root.title("错别字替换工具")
+        self.root.geometry("1100x900")
         
         # 知识库路径
-        # 使用相对路径以提高可移植性
         current_dir = os.path.dirname(os.path.abspath(__file__))
         self.library_path = os.path.join(current_dir, "errorLibrary", "Word_Library.md")
         
@@ -61,176 +60,90 @@ class WordReaderApp:
     def create_widgets(self):
         """创建界面组件"""
         
-        # ===== 顶部按钮区域 =====
-        btn_frame = tk.Frame(self.root, pady=10)
-        btn_frame.pack(fill=tk.X)
+        # 使用 LabelFrame 分组显示
         
-        self.select_btn = tk.Button(
-            btn_frame, 
-            text="📂 选择要被校准的文件", 
-            command=self.select_file,
-            font=("Microsoft YaHei", 12),
-            padx=20,
-            pady=5
-        )
-        self.select_btn.pack(side=tk.LEFT, padx=10)
+        # ===== 1. 核心校准功能 (Word Calibration) =====
+        calibrate_frame = tk.LabelFrame(self.root, text=" 🔧 核心校准功能 (Word Calibration) ", 
+                                       font=("Microsoft YaHei", 10, "bold"), padx=10, pady=5)
+        calibrate_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        self.clear_btn = tk.Button(
-            btn_frame,
-            text="🗑️ 清空内容",
-            command=self.clear_content,
-            font=("Microsoft YaHei", 10),
-            padx=15,
-            pady=5
-        )
-        self.clear_btn.pack(side=tk.LEFT, padx=10)
+        # 第一行：步骤引导
+        cal_row1 = tk.Frame(calibrate_frame)
+        cal_row1.pack(fill=tk.X, pady=5)
         
-        # ===== 主区域：左侧内容 + 右侧按钮 =====
-        main_frame = tk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        tk.Label(cal_row1, text="第一步:", font=("Microsoft YaHei", 9, "bold")).pack(side=tk.LEFT, padx=5)
+        self.select_btn = tk.Button(cal_row1, text="📂 选择待校准文件", command=self.select_file, 
+                                   font=("Microsoft YaHei", 9), bg="#2196F3", fg="white", padx=10)
+        self.select_btn.pack(side=tk.LEFT, padx=5)
         
-        # 左侧：内容显示区域
-        left_frame = tk.Frame(main_frame)
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tk.Button(cal_row1, text="🗑️ 清空预览", command=self.clear_content, 
+                  font=("Microsoft YaHei", 9), padx=10).pack(side=tk.LEFT, padx=5)
         
-        # 文件信息标签
-        self.file_label = tk.Label(
-            left_frame, 
-            text="请选择一个Word文件...",
-            font=("Microsoft YaHei", 10),
-            fg="gray"
-        )
-        self.file_label.pack(pady=5)
+        tk.Label(cal_row1, text="  第二步:", font=("Microsoft YaHei", 9, "bold")).pack(side=tk.LEFT, padx=10)
+        self.calibrate_btn = tk.Button(cal_row1, text="🚀 执行校准替换", command=self.run_calibrate, 
+                                      font=("Microsoft YaHei", 9), bg="#4CAF50", fg="white", padx=10)
+        self.calibrate_btn.pack(side=tk.LEFT, padx=5)
         
-        # 内容显示区域
-        self.text_area = scrolledtext.ScrolledText(
-            left_frame,
-            wrap=tk.WORD,
-            font=("Microsoft YaHei", 11),
-            padx=10,
-            pady=10
-        )
-        self.text_area.pack(fill=tk.BOTH, expand=True)
+        tk.Button(cal_row1, text="📚 维护知识库", command=self.open_library, 
+                  font=("Microsoft YaHei", 9), bg="#607D8B", fg="white", padx=10).pack(side=tk.LEFT, padx=10)
         
-        # 右侧：按钮区域
-        right_frame = tk.Frame(main_frame, width=150)
-        right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
-        right_frame.pack_propagate(False)
+        # 第二行：文件路径显示
+        self.file_label = tk.Label(calibrate_frame, text="已选文件: 未选择文件", font=("Microsoft YaHei", 9), fg="gray", anchor=tk.W)
+        self.file_label.pack(fill=tk.X, padx=5, pady=2)
         
-        # 右侧按钮 - 执行校准
-        self.calibrate_btn = tk.Button(
-            right_frame,
-            text="🔧 执行校准",
-            command=self.run_calibrate,
-            font=("Microsoft YaHei", 11),
-            padx=15,
-            pady=10,
-            bg="#4CAF50",
-            fg="white",
-            width=12
-        )
-        self.calibrate_btn.pack(pady=10)
+        # ===== 2. 辅助精简功能 (Document Cleaning) =====
+        clean_frame = tk.LabelFrame(self.root, text=" ✂️ 辅助精简功能 (Document Cleaning) ", 
+                                   font=("Microsoft YaHei", 10, "bold"), padx=10, pady=5)
+        clean_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # 右侧按钮 - 知识库
-        self.library_btn = tk.Button(
-            right_frame,
-            text="📚 知识库",
-            command=self.open_library,
-            font=("Microsoft YaHei", 11),
-            padx=15,
-            pady=10,
-            width=12
-        )
-        self.library_btn.pack(pady=10)
+        # 说明文字
+        tk.Label(clean_frame, text="说明: 自动合并同一人连续说的多段话（基于姓名时间戳格式）。", 
+                 font=("Microsoft YaHei", 9), fg="#666").pack(anchor=tk.W, padx=5)
         
-        # 分隔线
-        tk.Frame(right_frame, height=2, bg="gray").pack(fill=tk.X, padx=5, pady=10)
+        # 操作行
+        clean_row1 = tk.Frame(clean_frame)
+        clean_row1.pack(fill=tk.X, pady=5)
         
-        # 右侧按钮 - 选择被精简的Word
-        self.clean_select_btn = tk.Button(
-            right_frame,
-            text="📂 选择被精简的Word",
-            command=self.select_clean_file,
-            font=("Microsoft YaHei", 10),
-            padx=10,
-            pady=8,
-            width=15
-        )
-        self.clean_select_btn.pack(pady=5)
+        tk.Label(clean_row1, text="文件操作:", font=("Microsoft YaHei", 9, "bold")).pack(side=tk.LEFT, padx=5)
+        tk.Button(clean_row1, text="📂 选择待精简文件", command=self.select_clean_file, 
+                  font=("Microsoft YaHei", 9), bg="#2196F3", fg="white", padx=10).pack(side=tk.LEFT, padx=5)
         
-        # 右侧按钮 - 执行精简
-        self.clean_btn = tk.Button(
-            right_frame,
-            text="✂️ 执行精简",
-            command=self.run_clean,
-            font=("Microsoft YaHei", 11),
-            padx=15,
-            pady=8,
-            bg="#9C27B0",
-            fg="white",
-            width=12
-        )
-        self.clean_btn.pack(pady=5)
+        self.clean_btn = tk.Button(clean_row1, text="✂️ 开始精简合并", command=self.run_clean, 
+                                  font=("Microsoft YaHei", 9), bg="#9C27B0", fg="white", padx=10)
+        self.clean_btn.pack(side=tk.LEFT, padx=5)
         
-        # 被精简文件路径
-        self.clean_file_label = tk.Label(
-            right_frame,
-            text="未选择文件",
-            font=("Microsoft YaHei", 8),
-            fg="gray",
-            wraplength=120
-        )
-        self.clean_file_label.pack(pady=5)
+        # 文件路径显示
+        self.clean_file_label = tk.Label(clean_frame, text="已选文件: 未选择文件", font=("Microsoft YaHei", 9), fg="gray", anchor=tk.W)
+        self.clean_file_label.pack(fill=tk.X, padx=5, pady=2)
+
+        # ===== 3. 内容预览区域 =====
+        preview_label_frame = tk.Frame(self.root, padx=10)
+        preview_label_frame.pack(fill=tk.X)
+        tk.Label(preview_label_frame, text="📄 内容预览区域 (Content Preview)", font=("Microsoft YaHei", 9, "bold")).pack(side=tk.LEFT)
         
-        # 设置按钮已隐藏
-        # self.settings_btn = tk.Button(...)
+        self.text_area = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, font=("Microsoft YaHei", 11), padx=10, pady=10)
+        self.text_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # ===== 底部：日志输出区域（可调整高度）=====
-        # 使用 PanedWindow 实现可调整高度
+        # ===== 4. 底部：日志输出区域 (Log) =====
         self.log_paned = tk.PanedWindow(self.root, orient=tk.VERTICAL, sashrelief=tk.RAISED, sashwidth=6)
-        self.log_paned.pack(fill=tk.X, padx=10, pady=(5, 10))
+        self.log_paned.pack(fill=tk.X, padx=10, pady=5)
         
-        # 日志标题栏
         log_title_frame = tk.Frame(self.log_paned)
         self.log_paned.add(log_title_frame, height=30)
         
-        log_title = tk.Label(
-            log_title_frame,
-            text="📋 日志输出 ▼ 拖动调整高度",
-            font=("Microsoft YaHei", 9),
-            anchor=tk.W
-        )
-        log_title.pack(side=tk.LEFT, padx=5)
+        tk.Label(log_title_frame, text="📋 执行日志 ▼ 拖动边缘调整高度", font=("Microsoft YaHei", 9, "bold")).pack(side=tk.LEFT, padx=5)
+        tk.Button(log_title_frame, text="🗑️ 清空日志", command=self.clear_log, font=("Microsoft YaHei", 8), padx=10).pack(side=tk.RIGHT, padx=5)
         
-        # 清空日志按钮
-        tk.Button(
-            log_title_frame,
-            text="🗑️ 清空日志",
-            command=self.clear_log,
-            font=("Microsoft YaHei", 8),
-            padx=10
-        ).pack(side=tk.RIGHT, padx=5)
-        
-        # 日志文本区域（高度为原来的1.5倍，约12行）
-        self.log_text = scrolledtext.ScrolledText(
-            self.log_paned,
-            wrap=tk.WORD,
-            font=("Consolas", 9),
-            height=12,
-            bg="#1e1e1e",
-            fg="#00ff00"
-        )
+        self.log_text = scrolledtext.ScrolledText(self.log_paned, wrap=tk.WORD, font=("Consolas", 9), height=8, bg="#1e1e1e", fg="#00ff00")
         self.log_paned.add(self.log_text)
         
         # 状态栏
-        self.status_label = tk.Label(
-            self.root,
-            text="就绪",
-            font=("Microsoft YaHei", 9),
-            fg="gray",
-            anchor=tk.W
-        )
-        self.status_label.pack(fill=tk.X, padx=10, pady=(0, 5))
+        self.status_bar_frame = tk.Frame(self.root, padx=10)
+        self.status_bar_frame.pack(fill=tk.X, pady=5)
+        self.status_label = tk.Label(self.status_bar_frame, text="就绪", font=("Microsoft YaHei", 9), fg="gray")
+        self.status_label.pack(side=tk.LEFT)
+        self.char_count_label = tk.Label(self.status_bar_frame, text="字符数: 0", font=("Microsoft YaHei", 9), fg="gray")
+        self.char_count_label.pack(side=tk.RIGHT)
         
         # 绑定快捷键
         self.root.bind('<Control-o>', lambda e: self.select_file())
@@ -272,15 +185,27 @@ class WordReaderApp:
     def log_replace(self, line_num, wrong, right):
         """输出替换日志（带颜色和行号）"""
         timestamp = datetime.now().strftime("%H:%M:%S")
-        log_message = f"[{timestamp}] 替换: 第{line_num}行 「{wrong}」 → 「{right}」\n"
+        
+        # 对短词替换增加警告标记
+        warning_tag = ""
+        if len(wrong) <= 2:
+            warning_tag = " ⚠️"
+            
+        log_message = f"[{timestamp}] 替换: 第{line_num}行 「{wrong}」 → 「{right}」{warning_tag}\n"
         
         self.log_text.insert(tk.END, log_message)
         
         # 设置替换内容为黄色
         start_index = self.log_text.index(tk.END + "-2l")
         end_index = self.log_text.index(tk.END + "-1c")
-        self.log_text.tag_config("replace", foreground="#FFFF00")
-        self.log_text.tag_add("replace", start_index, end_index)
+        
+        # 如果有警告标记，设置不同的颜色或样式
+        if warning_tag:
+            self.log_text.tag_config("replace_warn", foreground="#FFD700") # 金色
+            self.log_text.tag_add("replace_warn", start_index, end_index)
+        else:
+            self.log_text.tag_config("replace", foreground="#FFFF00")
+            self.log_text.tag_add("replace", start_index, end_index)
         
         self.log_text.see(tk.END)
         self.root.update()
@@ -311,7 +236,7 @@ class WordReaderApp:
     def read_file(self, filepath):
         """读取文件内容"""
         self.current_file = filepath
-        self.file_label.config(text=os.path.basename(filepath), fg="black")
+        self.file_label.config(text=f"已选文件: {filepath}", fg="#2196F3")
         self.status_label.config(text="正在读取...")
         self.log(f"开始读取文件: {filepath}")
         self.text_area.delete(1.0, tk.END)
@@ -333,7 +258,8 @@ class WordReaderApp:
             
             self.text_area.insert(1.0, content)
             char_count = len(content)
-            self.status_label.config(text=f"读取完成 - {char_count} 字符")
+            self.status_label.config(text="读取完成")
+            self.char_count_label.config(text=f"字符数: {char_count}")
             self.log(f"读取完成: {char_count} 字符")
             
         except Exception as e:
@@ -414,11 +340,7 @@ class WordReaderApp:
         
         if filename:
             self.clean_file = filename
-            # 显示文件名（截取）
-            basename = os.path.basename(filename)
-            if len(basename) > 15:
-                basename = basename[:12] + "..."
-            self.clean_file_label.config(text=basename, fg="black")
+            self.clean_file_label.config(text=f"已选文件: {filename}", fg="#2196F3")
             self.log(f"已选择精简文件: {filename}")
     
     def run_clean(self):
@@ -582,7 +504,14 @@ class WordReaderApp:
     
     def load_library(self):
         """加载知识库"""
-        library = {}
+        library = []
+        
+        # 初始化白名单：这些词即使满足规则也不允许被替换（防止误杀极常用的生活词汇）
+        # 您可以在此处继续添加认为需要保护的词
+        whitelist = {"他们", "我们", "你们", "这个", "那个", "不是", "但是", "因为", "所以"}
+        
+        # 允许的纯数字错误词（白名单中的数字词条将不被排除）
+        allowed_numeric_wrong = {"10", "20", "30", "40", "50", "60", "70", "80", "90"}
         
         if not os.path.exists(self.library_path):
             self.log(f"知识库文件不存在: {self.library_path}", "error")
@@ -590,16 +519,40 @@ class WordReaderApp:
         
         try:
             with open(self.library_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+                lines = f.readlines()
             
-            # 解析 错误词=正确词 格式
-            pattern = r'([^=\s]+)=([^=\s]+)'
-            matches = re.findall(pattern, content)
+            for line in lines:
+                line = line.strip()
+                # 排除空行、注释
+                if not line or line.startswith('#') or line.startswith('---'):
+                    continue
+                
+                # 解析 错误词=正确词 格式
+                if '=' in line:
+                    parts = line.split('=')
+                    if len(parts) >= 2:
+                        wrong = parts[0].strip()
+                        right = parts[1].strip()
+                        
+                        # 1. 排除单字替换，以减少错误替换（如 "体"、"和"、"名"）
+                        if len(wrong) <= 1:
+                            continue
+                        
+                        # 2. 排除纯数字组成的条目，但允许白名单中的特殊数字词条（如 "10", "20" 等）
+                        # 允许 "0体"、"1名" 这种数字+文字的组合
+                        if wrong.isdigit() and wrong not in allowed_numeric_wrong:
+                            continue
+                        
+                        # 3. 排除白名单中的词
+                        if wrong in whitelist:
+                            continue
+                            
+                        library.append((wrong, right))
             
-            for wrong, right in matches:
-                library[wrong] = right
+            # 按词条长度从长到短排序，确保优先匹配长词（贪婪匹配）
+            library.sort(key=lambda x: len(x[0]), reverse=True)
             
-            self.log(f"知识库已加载: {len(library)} 条词条")
+            self.log(f"知识库已加载: {len(library)} 条有效词条 (已启用白名单和特殊数字词条支持)")
             
         except Exception as e:
             self.log(f"加载知识库失败: {str(e)}", "error")
@@ -663,18 +616,41 @@ class WordReaderApp:
             for para in doc.paragraphs:
                 line_num += 1
                 original_text = para.text
-                modified_text = original_text
+                if not original_text.strip():
+                    continue
                 
-                for wrong, right in library.items():
-                    if wrong in modified_text:
-                        count = modified_text.count(wrong)
-                        modified_text = modified_text.replace(wrong, right)
-                        total_replacements += count
-                        for _ in range(count):
-                            replacements_detail.append((line_num, wrong, right))
+                # 检查是否包含说话人信息区域 (格式: 姓名(00:00:00): 正文)
+                # 我们使用正则表达式来识别这个区域，并只校准正文部分
+                header_match = re.match(r'^(.+?\(\d{2}:\d{2}:\d{2}\):)(.*)$', original_text)
                 
-                if modified_text != original_text:
-                    para.text = modified_text
+                if header_match:
+                    header = header_match.group(1)
+                    body = header_match.group(2)
+                    modified_body = body
+                    
+                    for wrong, right in library:
+                        if wrong in modified_body:
+                            count = modified_body.count(wrong)
+                            modified_body = modified_body.replace(wrong, right)
+                            total_replacements += count
+                            for _ in range(count):
+                                replacements_detail.append((line_num, wrong, right))
+                    
+                    if modified_body != body:
+                        para.text = header + modified_body
+                else:
+                    # 如果不符合说话人格式，则全段校准
+                    modified_text = original_text
+                    for wrong, right in library:
+                        if wrong in modified_text:
+                            count = modified_text.count(wrong)
+                            modified_text = modified_text.replace(wrong, right)
+                            total_replacements += count
+                            for _ in range(count):
+                                replacements_detail.append((line_num, wrong, right))
+                    
+                    if modified_text != original_text:
+                        para.text = modified_text
             
             self.log(f"段落处理完成，共 {line_num} 段")
             
@@ -690,7 +666,7 @@ class WordReaderApp:
                         original_text = cell.text
                         modified_text = original_text
                         
-                        for wrong, right in library.items():
+                        for wrong, right in library:
                             if wrong in modified_text:
                                 count = modified_text.count(wrong)
                                 modified_text = modified_text.replace(wrong, right)

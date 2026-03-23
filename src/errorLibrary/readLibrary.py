@@ -23,14 +23,12 @@ class ReadLibraryApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("知识库管理器 - readLibrary")
-        self.root.geometry("1400x700")
+        self.root.geometry("1400x800")
         
         # 知识库路径
-        # 使用相对路径以提高可移植性
         self.library_dir = os.path.dirname(os.path.abspath(__file__))
         self.proper_library_path = os.path.join(self.library_dir, "Proper_Word_Library.txt")
         self.pending_review_path = os.path.join(self.library_dir, "Pending_Review.txt")
-        self.word_library_path = os.path.join(self.library_dir, "Word_Library.txt")
         self.word_library_md_path = os.path.join(self.library_dir, "Word_Library.md")
         
         # 数据
@@ -38,9 +36,12 @@ class ReadLibraryApp:
         self.import_preview = []  # 导入预览数据
         self.review_items = []  # 待审核候选错词 [(错词, 正词, 是否选中), ...]
         
-        # 排序选项
-        self.sort_var = tk.StringVar(value="time")  # 术语排序
-        self.done_sort_var = tk.StringVar(value="time")  # 词库排序
+        # 排序控制变量
+        self.term_sort_by = tk.StringVar(value="time")  # 术语排序依据: time/alpha
+        self.term_sort_order = tk.BooleanVar(value=False) # 术语排序方向: False=顺序, True=逆序
+        
+        self.done_sort_by = tk.StringVar(value="time")  # 词库排序依据: time/alpha
+        self.done_sort_order = tk.BooleanVar(value=False) # 词库排序方向: False=顺序, True=逆序
         
         # 当前tab
         self.current_tab = "terms"
@@ -51,6 +52,45 @@ class ReadLibraryApp:
         self.create_widgets()
         self.root.mainloop()
     
+    def add_word_entry(self):
+        """手工输入词条"""
+        entry_text = self.word_input.get().strip()
+        if not entry_text:
+            messagebox.showwarning("警告", "请输入词条内容，格式为：错误词=正确词")
+            return
+            
+        if '=' not in entry_text:
+            messagebox.showwarning("警告", "格式错误！请输入：错误词=正确词")
+            return
+            
+        parts = entry_text.split('=')
+        if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
+            messagebox.showwarning("警告", "格式错误！请输入：错误词=正确词")
+            return
+            
+        wrong = parts[0].strip()
+        right = parts[1].strip()
+        
+        # 排除单字替换和纯数字匹配（遵循之前的优化规则）
+        if len(wrong) <= 1:
+            messagebox.showwarning("警告", f"为了防止误替换，错误词 '{wrong}' 长度必须大于1")
+            return
+            
+        if wrong.isdigit() and wrong not in {"10", "20", "30", "40", "50", "60", "70", "80", "90"}:
+            messagebox.showwarning("警告", f"错误词 '{wrong}' 不能是纯数字（除非是特定的10, 20等）")
+            return
+            
+        # 保存词条
+        count = self.save_word_library([(wrong, right)])
+        
+        if count > 0:
+            self.word_input.delete(0, tk.END)
+            self.refresh_done_list()
+            self.refresh_view()
+            messagebox.showinfo("成功", f"词条添加成功：{wrong} → {right}")
+        else:
+            messagebox.showinfo("提示", "该词条已存在于知识库中")
+
     def load_data(self):
         """加载知识库数据"""
         # 加载专业术语
@@ -74,13 +114,14 @@ class ReadLibraryApp:
         """保存到正式词库（去重）"""
         # 先读取现有词库
         existing_entries = set()
-        if os.path.exists(self.word_library_path):
-            with open(self.word_library_path, 'r', encoding='utf-8') as f:
-                for line in f:
+        if os.path.exists(self.word_library_md_path):
+            with open(self.word_library_md_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                for line in lines:
                     line = line.strip()
-                    if line and '=' in line and not line.startswith('#'):
+                    if '=' in line and not line.startswith('#'):
                         parts = line.split('=')
-                        if len(parts) == 2:
+                        if len(parts) >= 2:
                             wrong = parts[0].strip()
                             right = parts[1].strip()
                             existing_entries.add((wrong, right))
@@ -92,8 +133,8 @@ class ReadLibraryApp:
             return 0  # 没有新词条
         
         # 写入新词条
-        with open(self.word_library_path, 'a', encoding='utf-8') as f:
-            f.write(f"\n# 导入时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        with open(self.word_library_md_path, 'a', encoding='utf-8') as f:
+            f.write(f"\n\n### 导入时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             for wrong, right in new_entries:
                 f.write(f"{wrong}={right}\n")
         
@@ -306,246 +347,122 @@ class ReadLibraryApp:
     def create_widgets(self):
         """创建界面组件"""
         
-        # ===== 第一行按钮：手工导入 =====
-        row1_frame = tk.Frame(self.root, pady=5)
-        row1_frame.pack(fill=tk.X)
+        # 使用 LabelFrame 分组显示
         
-        tk.Label(row1_frame, text="词库导入:", font=("Microsoft YaHei", 10)).pack(side=tk.LEFT, padx=10)
+        # ===== 1. 词库维护组 (Vocabulary Management) =====
+        lib_mgmt_frame = tk.LabelFrame(self.root, text=" 📖 词库维护 (Vocabulary Management) ", 
+                                      font=("Microsoft YaHei", 10, "bold"), padx=10, pady=5)
+        lib_mgmt_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # 手工导入词库按钮
-        tk.Button(
-            row1_frame, 
-            text="📥 手工导入词库", 
-            command=self.import_word_library,
-            font=("Microsoft YaHei", 10),
-            padx=12,
-            pady=3,
-            bg="#2196F3",
-            fg="white"
-        ).pack(side=tk.LEFT, padx=5)
+        # 第一行：核心操作 + 手工录入
+        lib_row1 = tk.Frame(lib_mgmt_frame)
+        lib_row1.pack(fill=tk.X, pady=5)
         
-        # 更新导入词库按钮
-        self.update_btn = tk.Button(
-            row1_frame, 
-            text="✅ 更新导入词库", 
-            command=self.update_word_library,
-            font=("Microsoft YaHei", 10),
-            padx=12,
-            pady=3,
-            bg="#4CAF50",
-            fg="white",
-            state=tk.DISABLED
-        )
+        tk.Label(lib_row1, text="核心操作:", font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=5)
+        tk.Button(lib_row1, text="📥 导入词库", command=self.import_word_library, 
+                  font=("Microsoft YaHei", 9), bg="#2196F3", fg="white", padx=10).pack(side=tk.LEFT, padx=5)
+        self.update_btn = tk.Button(lib_row1, text="✅ 更新导入", command=self.update_word_library, 
+                                   font=("Microsoft YaHei", 9), bg="#4CAF50", fg="white", padx=10, state=tk.DISABLED)
         self.update_btn.pack(side=tk.LEFT, padx=5)
         
-        # ===== 第二行按钮：专业术语 + 标签页 =====
-        row2_frame = tk.Frame(self.root, pady=5)
-        row2_frame.pack(fill=tk.X)
+        tk.Label(lib_row1, text="  手工输入:", font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=10)
+        self.word_input = tk.Entry(lib_row1, font=("Microsoft YaHei", 10), width=25)
+        self.word_input.pack(side=tk.LEFT, padx=5)
+        self.word_input.insert(0, "错误词=正确词")
+        self.word_input.bind('<Return>', lambda e: self.add_word_entry())
+        self.word_input.bind('<FocusIn>', lambda e: self.word_input.delete(0, tk.END) if self.word_input.get() == "错误词=正确词" else None)
+        tk.Button(lib_row1, text="➕ 添加词条", command=self.add_word_entry, 
+                  font=("Microsoft YaHei", 9), bg="#9C27B0", fg="white", padx=10).pack(side=tk.LEFT, padx=5)
         
-        tk.Label(row2_frame, text="专业术语:", font=("Microsoft YaHei", 10)).pack(side=tk.LEFT, padx=10)
+        # 第二行：视图切换 + 排序控制
+        lib_row2 = tk.Frame(lib_mgmt_frame)
+        lib_row2.pack(fill=tk.X, pady=5)
         
-        # 添加专业术语按钮
-        tk.Button(
-            row2_frame,
-            text="➕ 添加专业术语",
-            command=self.add_proper_word,
-            font=("Microsoft YaHei", 10),
-            padx=12,
-            pady=3
-        ).pack(side=tk.LEFT, padx=5)
+        tk.Label(lib_row2, text="查看视图:", font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=5)
+        self.done_btn = tk.Button(lib_row2, text="✅ 词库列表", command=lambda: self.switch_tab("done"), 
+                                 font=("Microsoft YaHei", 9), width=12)
+        self.done_btn.pack(side=tk.LEFT, padx=5)
+        self.view_btn = tk.Button(lib_row2, text="📖 知识库文档", command=lambda: self.switch_tab("view"), 
+                                 font=("Microsoft YaHei", 9), width=12)
+        self.view_btn.pack(side=tk.LEFT, padx=5)
         
-        # 选中术语生成候选错词按钮
-        tk.Button(
-            row2_frame,
-            text="🎯 选中生成错词",
-            command=self.generate_from_selected,
-            font=("Microsoft YaHei", 9),
-            padx=8,
-            pady=3,
-            bg="#2196F3",
-            fg="white"
-        ).pack(side=tk.LEFT, padx=5)
+        tk.Label(lib_row2, text="  排序依据:", font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=10)
+        tk.Radiobutton(lib_row2, text="时间", variable=self.done_sort_by, value="time", 
+                       command=self.refresh_done_list).pack(side=tk.LEFT)
+        tk.Radiobutton(lib_row2, text="字母", variable=self.done_sort_by, value="alpha", 
+                       command=self.refresh_done_list).pack(side=tk.LEFT)
+        tk.Checkbutton(lib_row2, text="逆序", variable=self.done_sort_order, 
+                       command=self.refresh_done_list).pack(side=tk.LEFT, padx=10)
         
-        # 排序选项
-        tk.Label(row2_frame, text="  排序:", font=("Microsoft YaHei", 10)).pack(side=tk.LEFT, padx=10)
+        # ===== 2. 术语开发组 (Terminology & Generation) =====
+        term_mgmt_frame = tk.LabelFrame(self.root, text=" 🎯 术语开发与错词生成 (Terminology & Generation) ", 
+                                       font=("Microsoft YaHei", 10, "bold"), padx=10, pady=5)
+        term_mgmt_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        self.sort_var = tk.StringVar(value="time")
+        # 第一行：核心操作
+        term_row1 = tk.Frame(term_mgmt_frame)
+        term_row1.pack(fill=tk.X, pady=5)
         
-        tk.Radiobutton(row2_frame, text="添加顺序", variable=self.sort_var, value="time",
-                       font=("Microsoft YaHei", 9), command=self.refresh_term_list).pack(side=tk.LEFT, padx=3)
-        tk.Radiobutton(row2_frame, text="字母顺序", variable=self.sort_var, value="alpha",
-                       font=("Microsoft YaHei", 9), command=self.refresh_term_list).pack(side=tk.LEFT, padx=3)
+        tk.Label(term_row1, text="核心操作:", font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=5)
+        tk.Button(term_row1, text="➕ 添加术语", command=self.add_proper_word, 
+                  font=("Microsoft YaHei", 9), bg="#607D8B", fg="white", padx=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(term_row1, text="🎯 选中生成", command=self.generate_from_selected, 
+                  font=("Microsoft YaHei", 9), bg="#2196F3", fg="white", padx=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(term_row1, text="🔥 全部生成候选错词", command=self.generate_candidate_errors, 
+                  font=("Microsoft YaHei", 9), bg="#FF9800", fg="white", padx=10).pack(side=tk.LEFT, padx=5)
         
-        # 标签页 - 放在 row2_frame 中
-        tk.Label(row2_frame, text="  查看:", font=("Microsoft YaHei", 10)).pack(side=tk.LEFT, padx=20)
+        # 第二行：视图切换 + 排序控制
+        term_row2 = tk.Frame(term_mgmt_frame)
+        term_row2.pack(fill=tk.X, pady=5)
         
-        self.term_btn = tk.Button(
-            row2_frame,
-            text="📚 术语",
-            command=lambda: self.switch_tab("terms"),
-            font=("Microsoft YaHei", 10),
-            padx=10,
-            width=10
-        )
-        self.term_btn.pack(side=tk.LEFT, padx=2)
+        tk.Label(term_row2, text="查看视图:", font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=5)
+        self.term_btn = tk.Button(term_row2, text="📑 术语列表", command=lambda: self.switch_tab("terms"), 
+                                 font=("Microsoft YaHei", 9), width=12)
+        self.term_btn.pack(side=tk.LEFT, padx=5)
+        self.review_btn = tk.Button(term_row2, text="⏳ 待审核", command=lambda: self.switch_tab("review"), 
+                                   font=("Microsoft YaHei", 9), width=12)
+        self.review_btn.pack(side=tk.LEFT, padx=5)
         
-        self.pending_btn = tk.Button(
-            row2_frame,
-            text="📋 预览",
-            command=lambda: self.switch_tab("pending"),
-            font=("Microsoft YaHei", 10),
-            padx=10,
-            width=10
-        )
-        self.pending_btn.pack(side=tk.LEFT, padx=2)
-        
-        # 待审核知识库标签页
-        self.review_btn = tk.Button(
-            row2_frame,
-            text="⏳ 待审核",
-            command=lambda: self.switch_tab("review"),
-            font=("Microsoft YaHei", 10),
-            padx=10,
-            width=12
-        )
-        self.review_btn.pack(side=tk.LEFT, padx=2)
-        
-        # 全部生成候选错词按钮
-        tk.Button(
-            row2_frame,
-            text="🎯 全部生成候选错词",
-            command=self.generate_candidate_errors,
-            font=("Microsoft YaHei", 9),
-            padx=8,
-            pady=3,
-            bg="#FF9800",
-            fg="white"
-        ).pack(side=tk.LEFT, padx=10)
-        
-        self.done_btn = tk.Button(
-            row2_frame,
-            text="✅ 词库",
-            command=lambda: self.switch_tab("done"),
-            font=("Microsoft YaHei", 10),
-            padx=10,
-            width=10
-        )
-        self.done_btn.pack(side=tk.LEFT, padx=2)
-        
-        # 词库排序选项
-        tk.Label(row2_frame, text="  排序:", font=("Microsoft YaHei", 10)).pack(side=tk.LEFT, padx=10)
-        
-        tk.Radiobutton(row2_frame, text="添加顺序", variable=self.done_sort_var, value="time",
-                       font=("Microsoft YaHei", 9), command=self.refresh_done_list).pack(side=tk.LEFT, padx=3)
-        tk.Radiobutton(row2_frame, text="字母顺序", variable=self.done_sort_var, value="alpha",
-                       font=("Microsoft YaHei", 9), command=self.refresh_done_list).pack(side=tk.LEFT, padx=3)
-        
-        self.view_btn = tk.Button(
-            row2_frame,
-            text="📖 文档",
-            command=lambda: self.switch_tab("view"),
-            font=("Microsoft YaHei", 10),
-            padx=10,
-            width=10
-        )
-        self.view_btn.pack(side=tk.LEFT, padx=2)
-        
-        # ===== 列表区域 =====
-        list_frame = tk.Frame(self.root, padx=10, pady=10)
+        tk.Label(term_row2, text="  排序依据:", font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=10)
+        tk.Radiobutton(term_row2, text="时间", variable=self.term_sort_by, value="time", 
+                       command=self.refresh_term_list).pack(side=tk.LEFT)
+        tk.Radiobutton(term_row2, text="字母", variable=self.term_sort_by, value="alpha", 
+                       command=self.refresh_term_list).pack(side=tk.LEFT)
+        tk.Checkbutton(term_row2, text="逆序", variable=self.term_sort_order, 
+                       command=self.refresh_term_list).pack(side=tk.LEFT, padx=10)
+
+        # ===== 3. 内容显示区域 =====
+        list_frame = tk.Frame(self.root, padx=10, pady=5)
         list_frame.pack(fill=tk.BOTH, expand=True)
         
         # 术语列表
-        self.term_listbox = tk.Listbox(
-            list_frame,
-            font=("Microsoft YaHei", 11),
-            selectmode=tk.EXTENDED
-        )
+        self.term_listbox = tk.Listbox(list_frame, font=("Microsoft YaHei", 11), selectmode=tk.EXTENDED)
+        # 已通过词库列表
+        self.done_listbox = tk.Listbox(list_frame, font=("Microsoft YaHei", 11), selectmode=tk.EXTENDED)
+        # 待审核列表
+        self.review_listbox = tk.Listbox(list_frame, font=("Microsoft YaHei", 11), selectmode=tk.EXTENDED)
+        # 知识库文档显示
+        self.view_text = scrolledtext.ScrolledText(list_frame, wrap=tk.WORD, font=("Microsoft YaHei", 10))
         
-        # 导入预览列表
-        self.pending_listbox = tk.Listbox(
-            list_frame,
-            font=("Microsoft YaHei", 11),
-            selectmode=tk.EXTENDED
-        )
-        
-        # 已通过列表
-        self.done_listbox = tk.Listbox(
-            list_frame,
-            font=("Microsoft YaHei", 11),
-            selectmode=tk.EXTENDED
-        )
-        
-        # 待审核知识库列表
-        self.review_listbox = tk.Listbox(
-            list_frame,
-            font=("Microsoft YaHei", 11),
-            selectmode=tk.EXTENDED
-        )
-        
-        # 查看词库
-        self.view_text = scrolledtext.ScrolledText(
-            list_frame,
-            wrap=tk.WORD,
-            font=("Microsoft YaHei", 10)
-        )
-        
-        # ===== 底部操作按钮 =====
+        # ===== 4. 底部操作区域 =====
         action_frame = tk.Frame(self.root, pady=10)
         action_frame.pack(fill=tk.X, padx=10)
         
-        tk.Button(
-            action_frame,
-            text="全选",
-            command=self.select_all,
-            font=("Microsoft YaHei", 10),
-            padx=15
-        ).pack(side=tk.LEFT, padx=5)
+        tk.Button(action_frame, text="全选", command=self.select_all, font=("Microsoft YaHei", 9), padx=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(action_frame, text="取消全选", command=self.deselect_all, font=("Microsoft YaHei", 9), padx=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(action_frame, text="🗑️ 删除选中", command=self.delete_selected, font=("Microsoft YaHei", 9), padx=10, fg="red").pack(side=tk.LEFT, padx=5)
         
-        tk.Button(
-            action_frame,
-            text="取消全选",
-            command=self.deselect_all,
-            font=("Microsoft YaHei", 10),
-            padx=15
-        ).pack(side=tk.LEFT, padx=5)
-        
-        tk.Button(
-            action_frame,
-            text="🗑️ 删除选中",
-            command=self.delete_selected,
-            font=("Microsoft YaHei", 10),
-            padx=15,
-            fg="red"
-        ).pack(side=tk.LEFT, padx=5)
-        
-        # 待审核知识库的批量导入按钮
-        tk.Button(
-            action_frame,
-            text="📥 批量导入词库",
-            command=self.batch_import_to_library,
-            font=("Microsoft YaHei", 10),
-            padx=15,
-            bg="#4CAF50",
-            fg="white"
-        ).pack(side=tk.LEFT, padx=20)
+        self.batch_import_btn = tk.Button(action_frame, text="📥 批量导入词库", command=self.batch_import_to_library, 
+                                        font=("Microsoft YaHei", 9, "bold"), bg="#4CAF50", fg="white", padx=15)
+        self.batch_import_btn.pack(side=tk.LEFT, padx=20)
         
         # 状态栏
-        self.status_label = tk.Label(
-            self.root,
-            text=f"专业术语: {len(self.proper_words)} 条 | 导入预览: {len(self.import_preview)} 条 | 待审核: 0 条 | 已选: 0 条",
-            font=("Microsoft YaHei", 9),
-            fg="gray",
-            anchor=tk.W
-        )
-        self.status_label.pack(fill=tk.X, padx=10, pady=(0, 5))
+        self.status_label = tk.Label(self.root, text="就绪", font=("Microsoft YaHei", 9), fg="gray", anchor=tk.W)
+        self.status_label.pack(fill=tk.X, padx=10, pady=5)
         
-        # 初始显示
+        # 初始化显示
         self.switch_tab("terms")
-        
-        # 绑定双击事件（术语列表）
         self.term_listbox.bind('<Double-Button-1>', self.on_term_double_click)
-        
-        # 绑定点击事件（待审核列表：点击切换选择状态）
         self.review_listbox.bind('<Button-1>', self.on_review_item_click)
     
     def switch_tab(self, tab_name):
@@ -553,50 +470,31 @@ class ReadLibraryApp:
         self.current_tab = tab_name
         
         # 更新按钮样式
-        bg_normal = "#E0E0E0"
+        bg_normal = "#F0F0F0"
         bg_active = "#BBDEFB"
         
         self.term_btn.config(bg=bg_active if tab_name == "terms" else bg_normal)
-        self.pending_btn.config(bg=bg_active if tab_name == "pending" else bg_normal)
         self.review_btn.config(bg=bg_active if tab_name == "review" else bg_normal)
         self.done_btn.config(bg=bg_active if tab_name == "done" else bg_normal)
         self.view_btn.config(bg=bg_active if tab_name == "view" else bg_normal)
         
         # 隐藏所有列表
         self.term_listbox.pack_forget()
-        self.pending_listbox.pack_forget()
         self.review_listbox.pack_forget()
         self.done_listbox.pack_forget()
         self.view_text.pack_forget()
         
-        # 添加滚动条
-        scrollbar = tk.Scrollbar(self.root)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
         if tab_name == "terms":
-            self.term_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.config(command=self.term_listbox.yview)
-            self.term_listbox.config(yscrollcommand=scrollbar.set)
+            self.term_listbox.pack(fill=tk.BOTH, expand=True)
             self.refresh_term_list()
-        elif tab_name == "pending":
-            self.pending_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.config(command=self.pending_listbox.yview)
-            self.pending_listbox.config(yscrollcommand=scrollbar.set)
-            self.refresh_pending_list()
         elif tab_name == "review":
-            self.review_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.config(command=self.review_listbox.yview)
-            self.review_listbox.config(yscrollcommand=scrollbar.set)
+            self.review_listbox.pack(fill=tk.BOTH, expand=True)
             self.refresh_review_list()
         elif tab_name == "done":
-            self.done_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.config(command=self.done_listbox.yview)
-            self.done_listbox.config(yscrollcommand=scrollbar.set)
+            self.done_listbox.pack(fill=tk.BOTH, expand=True)
             self.refresh_done_list()
         elif tab_name == "view":
-            self.view_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.config(command=self.view_text.yview)
-            self.view_text.config(yscrollcommand=scrollbar.set)
+            self.view_text.pack(fill=tk.BOTH, expand=True)
             self.refresh_view()
         
         # 更新状态栏
@@ -620,12 +518,16 @@ class ReadLibraryApp:
         self.term_listbox.delete(0, tk.END)
         
         # 根据排序方式显示
-        if self.sort_var.get() == "alpha":
+        if self.term_sort_by.get() == "alpha":
             # 字母顺序排序
             sorted_words = sorted(self.proper_words, key=lambda x: x.lower())
         else:
             # 按添加顺序（原始顺序）
-            sorted_words = self.proper_words
+            sorted_words = list(self.proper_words)
+            
+        # 处理逆序
+        if self.term_sort_order.get():
+            sorted_words.reverse()
         
         for word in sorted_words:
             self.term_listbox.insert(tk.END, word)
@@ -642,21 +544,29 @@ class ReadLibraryApp:
         
         # 先收集所有词条
         entries = []
-        if os.path.exists(self.word_library_path):
-            with open(self.word_library_path, 'r', encoding='utf-8') as f:
-                for line in f:
+        if os.path.exists(self.word_library_md_path):
+            with open(self.word_library_md_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                for line in lines:
                     line = line.strip()
-                    if line and '=' in line and not line.startswith('#'):
+                    if '=' in line and not line.startswith('#'):
                         parts = line.split('=')
-                        if len(parts) == 2:
+                        if len(parts) >= 2:
                             wrong = parts[0].strip()
                             right = parts[1].strip()
                             entries.append((wrong, right))
         
         # 根据排序方式显示
-        if self.done_sort_var.get() == "alpha":
+        if self.done_sort_by.get() == "alpha":
             # 字母顺序排序（按错词排序）
             entries = sorted(entries, key=lambda x: x[0].lower())
+        else:
+            # 原始顺序（加载顺序）
+            entries = list(entries)
+            
+        # 处理逆序
+        if self.done_sort_order.get():
+            entries.reverse()
         
         # 显示
         for wrong, right in entries:
@@ -767,13 +677,11 @@ class ReadLibraryApp:
         # 启用更新按钮
         self.update_btn.config(state=tk.NORMAL)
         
-        # 切换到预览标签
-        self.switch_tab("pending")
+        # 切换到词库列表视图（原逻辑是预览，现根据新布局切换到结果列表）
+        self.switch_tab("done")
         
-        # 更新状态
-        self.status_label.config(text=f"专业术语: {len(self.proper_words)} 条 | 导入预览: {len(self.import_preview)} 条")
-        
-        messagebox.showinfo("导入成功", f"已解析 {len(entries)} 个词条\n\n请在「导入预览」标签中查看\n确认无误后点击「更新导入词库」")
+        # 提示用户
+        messagebox.showinfo("导入成功", f"已解析 {len(entries)} 个词条\n\n点击「✅ 更新导入」即可正式存入词库。")
     
     def parse_word_file(self, filepath):
         """解析词库文件"""
@@ -1092,11 +1000,21 @@ class ReadLibraryApp:
         self.update_status_label()
     
     def update_status_label(self):
-        """更新状态栏"""
-        selected_count = sum(1 for w, r, s in self.review_items if s)
-        self.status_label.config(
-            text=f"专业术语: {len(self.proper_words)} 条 | 导入预览: {len(self.import_preview)} 条 | 待审核: {len(self.review_items)} 条 | 已选: {selected_count} 条"
-        )
+        """更新状态栏信息"""
+        total_proper = len(self.proper_words)
+        total_review = len(self.review_items)
+        selected_count = 0
+        
+        # 计算已选中的待审核项
+        if self.current_tab == "review":
+            selected_count = sum(1 for item in self.review_items if item[2])
+        elif self.current_tab == "terms":
+            selected_count = len(self.term_listbox.curselection())
+        elif self.current_tab == "done":
+            selected_count = len(self.done_listbox.curselection())
+            
+        status_text = f"专业术语: {total_proper} 条 | 待审核: {total_review} 条 | 已选: {selected_count} 条"
+        self.status_label.config(text=status_text)
     
     def batch_import_to_library(self):
         """批量导入待审核词条到词库"""
