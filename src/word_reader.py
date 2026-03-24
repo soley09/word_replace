@@ -84,8 +84,8 @@ class WordReaderApp:
                                       font=("Microsoft YaHei", 9), bg="#4CAF50", fg="white", padx=10)
         self.calibrate_btn.pack(side=tk.LEFT, padx=5)
         
-        tk.Button(cal_row1, text="📚 维护知识库", command=self.open_library, 
-                  font=("Microsoft YaHei", 9), bg="#607D8B", fg="white", padx=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(cal_row1, text="维护知识库入口", command=self.open_library, 
+                  font=("Microsoft YaHei", 9, "bold"), bg="#F44336", fg="white", padx=10).pack(side=tk.LEFT, padx=10)
         
         # 第二行：文件路径显示
         self.file_label = tk.Label(calibrate_frame, text="已选文件: 未选择文件", font=("Microsoft YaHei", 9), fg="gray", anchor=tk.W)
